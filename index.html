@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Chat</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%AC%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --teal-dark:#075E54; --teal:#128C7E; --green:#25D366;
+    --bg-chat:#E5DDD5; --bubble-out:#DCF8C6; --bubble-in:#FFFFFF;
+    --text:#111B21; --text-muted:#667781; --sidebar-bg:#FFFFFF;
+    --sidebar-hover:#F5F6F6; --border:#E9EDEF; --page-bg:#F0F2F5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --teal-dark:#202C33; --teal:#202C33; --green:#00A884;
+      --bg-chat:#0B141A; --bubble-out:#005C4B; --bubble-in:#202C33;
+      --text:#E9EDEF; --text-muted:#8696A0; --sidebar-bg:#111B21;
+      --sidebar-hover:#202C33; --border:#222D34; --page-bg:#0B141A;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    background:var(--page-bg); color:var(--text);
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  #app{display:flex; height:100vh; max-width:1200px; margin:0 auto; background:var(--sidebar-bg); box-shadow:0 0 20px rgba(0,0,0,.15);}
+
+  /* ---- Sidebar ---- */
+  .sidebar{width:360px; flex-shrink:0; display:flex; flex-direction:column; border-right:1px solid var(--border);}
+  .sidebar-header{background:var(--teal-dark); color:#fff; padding:14px 16px; display:flex; align-items:center; justify-content:space-between;}
+  .sidebar-header h1{font-size:19px; margin:0; font-weight:600;}
+  .icon-btn{background:none; border:none; color:#fff; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; line-height:1;}
+  .icon-btn:hover{background:rgba(255,255,255,.15);}
+  .search-wrap{padding:8px 12px; background:var(--sidebar-bg);}
+  .search-wrap input{width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--page-bg); color:var(--text); font-size:14px;}
+  .room-list{flex:1; overflow-y:auto;}
+  .room-item{display:flex; gap:12px; padding:12px 16px; cursor:pointer; border-bottom:1px solid var(--border); align-items:center;}
+  .room-item:hover{background:var(--sidebar-hover);}
+  .room-item.active{background:var(--sidebar-hover);}
+  .avatar{width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:600; font-size:17px; flex-shrink:0;}
+  .room-meta{flex:1; min-width:0;}
+  .room-top{display:flex; justify-content:space-between; gap:8px;}
+  .room-name{font-weight:500; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .room-time{font-size:12px; color:var(--text-muted); flex-shrink:0;}
+  .room-preview{font-size:13px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .empty-rooms{padding:32px 20px; text-align:center; color:var(--text-muted); font-size:14px;}
+
+  /* ---- Chat panel ---- */
+  .chat-panel{flex:1; display:flex; flex-direction:column; min-width:0;}
+  .chat-header{background:var(--teal-dark); color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; min-height:60px;}
+  .back-btn{display:none; background:none; border:none; color:#fff; font-size:22px; cursor:pointer;}
+  .chat-header .room-name{color:#fff; font-size:16px;}
+  .chat-sub{font-size:12px; opacity:.8;}
+  .offline-banner{background:#5A4300; color:#FFE49C; font-size:13px; text-align:center; padding:6px; display:none;}
+  .offline-banner.show{display:block;}
+  .messages{flex:1; overflow-y:auto; padding:16px 6% ; background:var(--bg-chat); display:flex; flex-direction:column; gap:2px;}
+  .date-sep{align-self:center; background:rgba(255,255,255,.75); color:var(--text-muted); font-size:12px; padding:4px 10px; border-radius:8px; margin:10px 0;}
+  @media (prefers-color-scheme: dark){ .date-sep{background:#182229;} }
+  .bubble-row{display:flex;}
+  .bubble-row.own{justify-content:flex-end;}
+  .bubble{max-width:65%; padding:7px 10px 8px 10px; border-radius:8px; margin:2px 0; position:relative; box-shadow:0 1px 1px rgba(0,0,0,.1);}
+  .bubble.in{background:var(--bubble-in); border-top-left-radius:0;}
+  .bubble.out{background:var(--bubble-out); border-top-right-radius:0;}
+  .bubble .sender{font-size:12.5px; font-weight:600; color:var(--teal); margin-bottom:2px;}
+  .bubble .content{font-size:14.3px; line-height:1.35; white-space:pre-wrap; word-break:break-word; color:var(--text);}
+  .bubble .meta{display:flex; justify-content:flex-end; gap:4px; font-size:11px; color:var(--text-muted); margin-top:3px;}
+  .tick{font-size:12px;}
+  .tick.sent{color:var(--text-muted);}
+  .no-room{flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); background:var(--bg-chat); font-size:14px; text-align:center; padding:20px;}
+  .composer{display:flex; gap:8px; align-items:center; padding:10px; background:var(--sidebar-bg); border-top:1px solid var(--border);}
+  .composer input{flex:1; border:none; border-radius:20px; padding:11px 16px; background:var(--page-bg); color:var(--text); font-size:14.5px; outline:none;}
+  .send-btn{background:var(--green); color:#fff; border:none; width:42px; height:42px; border-radius:50%; font-size:18px; cursor:pointer; flex-shrink:0;}
+  .send-btn:disabled{opacity:.5; cursor:default;}
+
+  /* ---- Modal ---- */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:50; padding:16px;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--sidebar-bg); border-radius:10px; padding:24px; width:100%; max-width:360px;}
+  .modal h2{margin:0 0 6px; font-size:18px;}
+  .modal p{margin:0 0 16px; font-size:13.5px; color:var(--text-muted);}
+  .modal input{width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--page-bg); color:var(--text); font-size:14.5px; margin-bottom:12px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px;}
+  .btn{border:none; padding:9px 16px; border-radius:8px; font-size:14px; cursor:pointer;}
+  .btn-primary{background:var(--green); color:#fff;}
+  .btn-ghost{background:none; color:var(--text-muted);}
+
+  @media (max-width:768px){
+    #app{max-width:none; box-shadow:none;}
+    .sidebar{width:100%; border-right:none;}
+    .chat-panel{display:none;}
+    .back-btn{display:inline-block;}
+    body.chat-open .sidebar{display:none;}
+    body.chat-open .chat-panel{display:flex;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>Chat</h1>
+      <button class="icon-btn" id="newChatBtn" title="Percakapan baru">+</button>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Cari percakapan">
+    </div>
+    <div class="room-list" id="roomList"></div>
+  </div>
+
+  <div class="chat-panel" id="chatPanel">
+    <div class="no-room" id="noRoom">Pilih percakapan, atau buat yang baru dengan tombol "+"</div>
+  </div>
+</div>
+
+<div class="overlay" id="nameOverlay">
+  <div class="modal">
+    <h2>Atur namamu</h2>
+    <p>Nama ini akan terlihat oleh lawan bicaramu.</p>
+    <input type="text" id="nameInput" placeholder="Nama kamu" maxlength="30">
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="saveNameBtn">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="roomOverlay">
+  <div class="modal">
+    <h2>Percakapan baru</h2>
+    <p>Buat kode unik lalu bagikan ke lawan bicaramu — dia masukkan kode yang sama supaya kalian masuk ke percakapan yang sama.</p>
+    <input type="text" id="roomLabelInput" placeholder="Nama percakapan (mis. Budi)">
+    <input type="text" id="roomCodeInput" placeholder="Kode percakapan (mis. budi-chan-2026)">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelRoomBtn">Batal</button>
+      <button class="btn btn-primary" id="saveRoomBtn">Buat / Gabung</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ============================================================
+   Backend sudah dibuat otomatis: project Supabase "chat-app"
+   (tabel messages + Row Level Security + Realtime sudah aktif).
+   Yang masih perlu kamu lakukan:
+   1. Upload chat.html DAN sw.js ke hosting yang sama (Cloudflare Pages/Workers,
+      Vercel, Netlify, dll) di folder yang sama, lalu buka lewat HTTPS.
+   2. Setelah dibuka sekali saat online, halaman ini bisa dibuka lagi tanpa
+      internet (tampilan + pesan tersimpan tetap muncul). Pesan yang dikirim
+      saat offline akan otomatis terkirim begitu koneksi kembali.
+   Kelola project ini di dashboard.supabase.com (project: chat-app).
+   ============================================================ */
+  const SUPABASE_URL = 'https://rarbqaptitoclpzwwuvu.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_6J1UDncTCELVTsf6CCGUnA_gR6H5c9m';
+
+  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ---------- util ----------
+  const $ = sel => document.querySelector(sel);
+  const uid = () => crypto.randomUUID();
+  const escapeText = s => s;
+  const initials = name => (name || '?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  function colorFor(str){
+    let h = 0;
+    for (const c of (str||'')) h = (h*31 + c.charCodeAt(0)) % 360;
+    return `hsl(${h} 55% 45%)`;
+  }
+  function fmtTime(ts){ return new Date(ts).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
+  function fmtDate(ts){
+    const d = new Date(ts), today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    const y = new Date(today); y.setDate(today.getDate()-1);
+    if (sameDay) return 'Hari ini';
+    if (d.toDateString() === y.toDateString()) return 'Kemarin';
+    return d.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+  }
+
+  // ---------- local storage ----------
+  const LS = {
+    user: () => JSON.parse(localStorage.getItem('chat_user')||'null'),
+    setUser: u => localStorage.setItem('chat_user', JSON.stringify(u)),
+    rooms: () => JSON.parse(localStorage.getItem('chat_rooms')||'[]'),
+    setRooms: r => localStorage.setItem('chat_rooms', JSON.stringify(r)),
+    cache: id => JSON.parse(localStorage.getItem('chat_cache_'+id)||'[]'),
+    setCache: (id, msgs) => localStorage.setItem('chat_cache_'+id, JSON.stringify(msgs.slice(-200))),
+    outbox: () => JSON.parse(localStorage.getItem('chat_outbox')||'[]'),
+    setOutbox: o => localStorage.setItem('chat_outbox', JSON.stringify(o)),
+  };
+
+  let user = LS.user();
+  let rooms = LS.rooms();
+  let activeRoom = null;
+  let channel = null;
+  const knownIds = new Set();
+
+  // ---------- onboarding: nama ----------
+  if (!user){
+    $('#nameOverlay').classList.add('show');
+  } else {
+    boot();
+  }
+  $('#saveNameBtn').onclick = () => {
+    const name = $('#nameInput').value.trim();
+    if (!name) return;
+    user = { id: uid(), name };
+    LS.setUser(user);
+    $('#nameOverlay').classList.remove('show');
+    boot();
+  };
+
+  function boot(){
+    renderRoomList();
+    window.addEventListener('online', () => { updateOfflineBanner(); flushOutbox(); });
+    window.addEventListener('offline', updateOfflineBanner);
+    updateOfflineBanner();
+    setInterval(flushOutbox, 6000);
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    }
+  }
+
+  // ---------- percakapan baru ----------
+  $('#newChatBtn').onclick = () => $('#roomOverlay').classList.add('show');
+  $('#cancelRoomBtn').onclick = () => $('#roomOverlay').classList.remove('show');
+  $('#saveRoomBtn').onclick = () => {
+    const label = $('#roomLabelInput').value.trim();
+    const code = $('#roomCodeInput').value.trim();
+    if (!label || !code) return;
+    if (!rooms.find(r => r.id === code)){
+      rooms.unshift({ id: code, name: label, lastMessage: '', lastTime: null });
+      LS.setRooms(rooms);
+    }
+    $('#roomLabelInput').value = ''; $('#roomCodeInput').value = '';
+    $('#roomOverlay').classList.remove('show');
+    renderRoomList();
+    openRoom(code);
+  };
+
+  $('#searchInput').oninput = renderRoomList;
+
+  function renderRoomList(){
+    const q = $('#searchInput').value.trim().toLowerCase();
+    const list = $('#roomList');
+    list.innerHTML = '';
+    const filtered = rooms.filter(r => r.name.toLowerCase().includes(q));
+    if (!filtered.length){
+      list.innerHTML = '<div class="empty-rooms">Belum ada percakapan.<br>Tekan "+" untuk memulai.</div>';
+      return;
+    }
+    for (const r of filtered){
+      const el = document.createElement('div');
+      el.className = 'room-item' + (activeRoom===r.id ? ' active':'');
+      el.innerHTML = `
+        <div class="avatar" style="background:${colorFor(r.id)}">${initials(r.name)}</div>
+        <div class="room-meta">
+          <div class="room-top">
+            <span class="room-name"></span>
+            <span class="room-time">${r.lastTime ? fmtTime(r.lastTime) : ''}</span>
+          </div>
+          <div class="room-preview"></div>
+        </div>`;
+      el.querySelector('.room-name').textContent = r.name;
+      el.querySelector('.room-preview').textContent = r.lastMessage || 'Belum ada pesan';
+      el.onclick = () => openRoom(r.id);
+      list.appendChild(el);
+    }
+  }
+
+  // ---------- buka percakapan ----------
+  async function openRoom(roomId){
+    activeRoom = roomId;
+    document.body.classList.add('chat-open');
+    renderRoomList();
+    const room = rooms.find(r => r.id === roomId);
+    knownIds.clear();
+
+    $('#chatPanel').innerHTML = `
+      <div class="chat-header">
+        <button class="back-btn" id="backBtn">&larr;</button>
+        <div class="avatar" style="background:${colorFor(roomId)}">${initials(room.name)}</div>
+        <div>
+          <div class="room-name">${room.name}</div>
+          <div class="chat-sub" id="chatSub"></div>
+        </div>
+      </div>
+      <div class="offline-banner" id="offlineBanner">Anda sedang offline — pesan akan terkirim otomatis saat koneksi kembali</div>
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <input type="text" id="msgInput" placeholder="Ketik pesan">
+        <button class="send-btn" id="sendBtn">&#10148;</button>
+      </div>`;
+    $('#backBtn').onclick = () => { document.body.classList.remove('chat-open'); };
+    updateOfflineBanner();
+
+    // tampilkan cache dulu (instan, bekerja offline)
+    renderMessages(LS.cache(roomId));
+
+    $('#sendBtn').onclick = sendCurrent;
+    $('#msgInput').onkeydown = e => { if (e.key === 'Enter') sendCurrent(); };
+
+    if (channel) supabase.removeChannel(channel);
+    if (navigator.onLine){
+      try{
+        const { data } = await supabase.from('messages').select('*')
+          .eq('room_id', roomId).order('created_at', { ascending:true }).limit(200);
+        if (data){
+          LS.setCache(roomId, data);
+          renderMessages(data);
+        }
+      }catch(e){ /* tetap pakai cache */ }
+
+      channel = supabase.channel('room:'+roomId)
+        .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`room_id=eq.${roomId}` }, payload => {
+          if (knownIds.has(payload.new.id)) return;
+          appendMessage(payload.new);
+          const cache = LS.cache(roomId); cache.push(payload.new); LS.setCache(roomId, cache);
+          updateRoomPreview(roomId, payload.new);
+        })
+        .subscribe();
+    }
+  }
+
+  function renderMessages(msgs){
+    const box = $('#messages'); if (!box) return;
+    box.innerHTML = '';
+    let lastDate = null;
+    for (const m of msgs){
+      const d = fmtDate(m.created_at);
+      if (d !== lastDate){
+        const sep = document.createElement('div'); sep.className = 'date-sep'; sep.textContent = d;
+        box.appendChild(sep); lastDate = d;
+      }
+      box.appendChild(bubbleEl(m));
+      knownIds.add(m.id);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function appendMessage(m){
+    const box = $('#messages'); if (!box) return;
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    box.appendChild(bubbleEl(m));
+    knownIds.add(m.id);
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function bubbleEl(m){
+    const own = m.sender_id === user.id;
+    const row = document.createElement('div');
+    row.className = 'bubble-row' + (own ? ' own':'');
+    row.dataset.tempId = m.tempId || '';
+    const b = document.createElement('div');
+    b.className = 'bubble ' + (own ? 'out':'in');
+    const content = document.createElement('div'); content.className='content'; content.textContent = m.content;
+    const meta = document.createElement('div'); meta.className='meta';
+    meta.innerHTML = `<span>${fmtTime(m.created_at)}</span>` + (own ? `<span class="tick ${m.pending?'':'sent'}">${m.pending ? '&#128337;' : '&#10003;&#10003;'}</span>` : '');
+    if (!own){ const s=document.createElement('div'); s.className='sender'; s.textContent=m.sender_name; b.appendChild(s); }
+    b.appendChild(content); b.appendChild(meta);
+    row.appendChild(b);
+    return row;
+  }
+
+  function updateRoomPreview(roomId, m){
+    const r = rooms.find(r => r.id === roomId);
+    if (!r) return;
+    r.lastMessage = (m.sender_id === user.id ? 'Anda: ' : '') + m.content;
+    r.lastTime = m.created_at;
+    LS.setRooms(rooms);
+    renderRoomList();
+  }
+
+  // ---------- kirim pesan ----------
+  function sendCurrent(){
+    const input = $('#msgInput');
+    const text = input.value.trim();
+    if (!text || !activeRoom) return;
+    input.value = '';
+    sendMessage(activeRoom, text);
+  }
+
+  async function sendMessage(roomId, text){
+    const tempId = uid();
+    const optimistic = {
+      id: tempId, tempId, room_id: roomId, sender_id: user.id, sender_name: user.name,
+      content: text, created_at: new Date().toISOString(), pending: true
+    };
+    appendMessage(optimistic);
+    const cache = LS.cache(roomId); cache.push(optimistic); LS.setCache(roomId, cache);
+    updateRoomPreview(roomId, optimistic);
+
+    if (!navigator.onLine){
+      queueOutbox(optimistic);
+      return;
+    }
+    try{
+      const { data, error } = await supabase.from('messages').insert({
+        room_id: roomId, sender_id: user.id, sender_name: user.name, content: text
+      }).select().single();
+      if (error) throw error;
+      knownIds.add(data.id);
+      replaceCachedTemp(roomId, tempId, data);
+      markBubbleSent(tempId, data);
+    }catch(e){
+      queueOutbox(optimistic);
+    }
+  }
+
+  function queueOutbox(msg){
+    const ob = LS.outbox(); ob.push(msg); LS.setOutbox(ob);
+  }
+
+  function replaceCachedTemp(roomId, tempId, real){
+    const cache = LS.cache(roomId).map(m => m.tempId === tempId ? real : m);
+    LS.setCache(roomId, cache);
+  }
+
+  function markBubbleSent(tempId, real){
+    const row = document.querySelector(`.bubble-row[data-temp-id="${tempId}"]`);
+    if (!row) return;
+    const tick = row.querySelector('.tick');
+    if (tick){ tick.classList.add('sent'); tick.innerHTML = '&#10003;&#10003;'; }
+  }
+
+  async function flushOutbox(){
+    if (!navigator.onLine) return;
+    let ob = LS.outbox();
+    if (!ob.length) return;
+    const remaining = [];
+    for (const msg of ob){
+      try{
+        const { data, error } = await supabase.from('messages').insert({
+          room_id: msg.room_id, sender_id: msg.sender_id, sender_name: msg.sender_name, content: msg.content
+        }).select().single();
+        if (error) throw error;
+        knownIds.add(data.id);
+        replaceCachedTemp(msg.room_id, msg.tempId, data);
+        if (msg.room_id === activeRoom) markBubbleSent(msg.tempId, data);
+      }catch(e){ remaining.push(msg); }
+    }
+    LS.setOutbox(remaining);
+  }
+
+  function updateOfflineBanner(){
+    const b = $('#offlineBanner');
+    if (b) b.classList.toggle('show', !navigator.onLine);
+  }
+</script>
+</body>
+</html>
